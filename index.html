@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart City Route Optimizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 32 L15 14 L25 25 L34 8"/><circle cx="6" cy="32" r="4"/><circle cx="15" cy="14" r="3"/><circle cx="25" cy="25" r="3"/><circle cx="34" cy="8" r="4"/></svg>
+    <div><h1>Smart City Route Optimizer</h1><p>Dijkstra and Bellman-Ford, computed in Python</p></div>
+  </div>
+  <nav role="tablist">
+    <button class="active" data-tab="planner">Route planner</button>
+    <button data-tab="lab">Performance lab</button>
+    <button data-tab="learn">Algorithms</button>
+  </nav>
+  <div class="live"><span><b id="hV">0</b> locations</span><span><b id="hE">0</b> roads</span></div>
+</header>
+
+<main>
+<section id="planner" class="tab active">
+  <aside class="panel">
+    <h2>Plan a journey</h2>
+    <label>Start<select id="from"></select></label>
+    <div id="vias"></div>
+    <label>Destination<select id="to"></select></label>
+    <div class="row">
+      <button class="ghost" id="addStop">+ Add stop</button>
+      <button class="ghost" id="swap">⇅ Swap</button>
+    </div>
+
+    <h3>Optimise for</h3>
+    <div class="seg" id="metric">
+      <button data-v="distance">Shortest</button>
+      <button data-v="time" class="active">Fastest</button>
+      <button data-v="fuel">Cheapest</button>
+    </div>
+    <label>Traffic level <output id="trafficOut">50%</output>
+      <input type="range" id="traffic" min="0" max="100" value="50"></label>
+    <div class="chips">
+      <button data-traffic="10">Night</button><button data-traffic="50">Midday</button><button data-traffic="100">Rush hour</button>
+    </div>
+    <label class="check"><input type="checkbox" id="early" checked> Dijkstra stops at destination</label>
+    <button class="primary" id="find">Find best route</button>
+
+    <details>
+      <summary>City builder</summary>
+      <label>Locations <output id="sizeOut">90</output><input type="range" id="size" min="12" max="600" value="90"></label>
+      <label>Road density <output id="densOut">55%</output><input type="range" id="dens" min="0" max="100" value="55"></label>
+      <label>Random seed<input type="number" id="seed" value="7"></label>
+      <button class="ghost wide" id="generate">Generate new city</button>
+      <div class="row"><button class="ghost" id="export">Export JSON</button><button class="ghost" id="importBtn">Import JSON</button></div>
+      <input type="file" id="importFile" accept=".json" hidden>
+    </details>
+  </aside>
+
+  <div class="mapwrap">
+    <div class="toolbar">
+      <div class="seg" id="mode">
+        <button data-v="pick" class="active">Pick route</button>
+        <button data-v="close">Close road</button>
+        <button data-v="node">Add location</button>
+        <button data-v="road">Add road</button>
+      </div>
+      <select id="roadKind" hidden><option value="street">Street</option><option value="arterial">Arterial</option><option value="highway">Highway</option></select>
+      <label class="check"><input type="checkbox" id="showTraffic" checked> Traffic</label>
+      <label class="check"><input type="checkbox" id="showWeights"> Weights</label>
+      <button class="ghost" id="fit">Fit view</button>
+    </div>
+    <div class="stage">
+      <canvas id="map" aria-label="City road map"></canvas>
+      <div id="tip" hidden></div>
+      <div id="hint">Click a location to set the start.</div>
+      <div class="legend">
+        <span><i class="l-hw"></i>Highway</span><span><i class="l-ar"></i>Arterial</span><span><i class="l-st"></i>Street</span>
+        <span><i class="l-jam"></i>Congested</span><span><i class="l-closed"></i>Closed</span><span><i class="l-route"></i>Route</span>
+      </div>
+    </div>
+    <div class="playbar">
+      <span>Watch the search</span>
+      <button class="algo d" data-play="dijkstra">▶ Dijkstra</button>
+      <button class="algo b" data-play="bellman">▶ Bellman-Ford</button>
+      <label>Speed<input type="range" id="speed" min="1" max="10" value="5"></label>
+      <output id="playInfo"></output>
+    </div>
+  </div>
+
+  <aside class="panel" id="results" aria-live="polite">
+    <h2>Results</h2>
+    <div id="resultBody" class="empty">Choose a start and destination, then find the route.</div>
+  </aside>
+</section>
+
+<section id="lab" class="tab">
+  <div class="panel labcontrols">
+    <h2>Performance lab</h2>
+    <p>Python times each algorithm computing shortest travel times from one source to every location, on freshly generated cities.</p>
+    <label>Graph sizes (comma separated, 10–2000)<input id="sizes" value="25, 50, 100, 200, 400, 800"></label>
+    <label>Road density <output id="bdensOut">55%</output><input type="range" id="bdens" min="0" max="100" value="55"></label>
+    <label>Random cities per size<select id="trials"><option>1</option><option selected>3</option><option>5</option></select></label>
+    <label class="check"><input type="checkbox" id="classic" checked> Include classic Bellman-Ford (all V−1 passes, up to 800 locations)</label>
+    <button class="primary" id="run">Run benchmark</button>
+    <progress id="prog" max="1" value="0" hidden></progress>
+    <p id="labMsg" class="muted"></p>
+  </div>
+  <div class="labmain">
+    <div class="cards" id="summary"></div>
+    <div class="panel">
+      <div class="charthead">
+        <h2 id="chartTitle">Running time (ms)</h2>
+        <div class="seg" id="chartMetric"><button data-v="ms" class="active">Time</button><button data-v="edge_checks">Edge checks</button></div>
+        <label class="check"><input type="checkbox" id="log" checked> Log scale</label>
+      </div>
+      <div class="keys" id="keys"></div>
+      <div id="chart" class="empty">Run the benchmark to draw the comparison.</div>
+    </div>
+    <div class="panel">
+      <div class="charthead"><h2>Measurements</h2><button class="ghost" id="csv" disabled>Download CSV</button></div>
+      <div class="scroll"><table id="table"></table></div>
+    </div>
+  </div>
+</section>
+
+<section id="learn" class="tab">
+  <div class="two">
+    <article class="panel algo-card d">
+      <h2>Dijkstra</h2>
+      <p>Greedy. Repeatedly takes the closest unsettled location from a priority queue and relaxes its outgoing roads. Once settled, a distance is final.</p>
+      <ol><li>Set the source distance to 0 and all others to ∞.</li><li>Pop the nearest location from the min-heap.</li><li>For each neighbour, keep the shorter distance and push it.</li><li>Stop when the destination is popped or the heap is empty.</li></ol>
+    </article>
+    <article class="panel algo-card b">
+      <h2>Bellman-Ford</h2>
+      <p>Dynamic programming. After pass <i>k</i>, every shortest path using at most <i>k</i> roads is correct.</p>
+      <ol><li>Set the source distance to 0 and all others to ∞.</li><li>Relax every road, up to V−1 passes.</li><li>Stop early if a pass changes nothing.</li><li>One more improvement means a negative cycle exists.</li></ol>
+    </article>
+  </div>
+  <div class="panel scroll">
+    <h2>Comparison</h2>
+    <table>
+      <tr><th>Property</th><th>Dijkstra (binary heap)</th><th>Bellman-Ford</th></tr>
+      <tr><td>Worst-case time</td><td>O((V + E) log V)</td><td>O(V · E)</td></tr>
+      <tr><td>Best-case time (single source)</td><td>O((V + E) log V)</td><td>O(E) with early exit</td></tr>
+      <tr><td>Extra space</td><td>O(V + E)</td><td>O(V)</td></tr>
+      <tr><td>Negative weights</td><td>Not supported</td><td>Supported</td></tr>
+      <tr><td>Negative cycle detection</td><td>No</td><td>Yes</td></tr>
+      <tr><td>Best use here</td><td>Live navigation on road maps</td><td>Rebates or credits that make weights negative</td></tr>
+    </table>
+  </div>
+  <div class="panel">
+    <h2>Negative-weight experiment</h2>
+    <p>Imagine a toll rebate that makes one road's cost negative. Pick a case and compare the answers from location A.</p>
+    <div class="seg" id="demoKind"><button data-v="positive">All positive</button><button data-v="negative" class="active">Negative road</button><button data-v="cycle">Negative cycle</button></div>
+    <div class="demo"><svg id="demoSvg" viewBox="0 0 520 260"></svg><div><table id="demoTable"></table><p id="demoNote"></p></div></div>
+  </div>
+  <div class="two">
+    <div class="panel"><h2>dijkstra() source</h2><pre id="srcD"></pre></div>
+    <div class="panel"><h2>bellman_ford() source</h2><pre id="srcB"></pre></div>
+  </div>
+</section>
+</main>
+<div id="toast" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
